@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水の波紋ドットプログラム</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #0b1c3f;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  svg {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  #modeToggle {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: #ffffff; /* 常に白 */
+    color: #101010;       /* 初期黒っぽい色 */
+    border: none;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+<button id="modeToggle">✋</button>
+<svg id="svgGrid"></svg>
+
+<script>
+const svg = document.getElementById('svgGrid');
+const dots = [];
+const spacing = 17;
+
+// 青系グラデーション
+const shadeColors = [
+  {r:11,g:28,b:63},
+  {r:25,g:50,b:128},
+  {r:70,g:130,b:180},
+  {r:135,g:206,b:235},
+  {r:176,g:224,b:230}
+];
+
+function lerpColor(a,b,t){
+  const r = Math.round(a.r + (b.r - a.r) * t);
+  const g = Math.round(a.g + (b.g - a.g) * t);
+  const bVal = Math.round(a.b + (b.b - a.b) * t);
+  return {r,g,b:bVal};
+}
+
+function rgbToString(c){
+  return `rgb(${c.r},${c.g},${c.b})`;
+}
+
+// ドット配置
+const cols = Math.floor(window.innerWidth / spacing);
+const rows = Math.floor(window.innerHeight / spacing);
+
+for(let r=0; r<rows; r++){
+  for(let c=0; c<cols; c++){
+    const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx", c*spacing + spacing/2);
+    circle.setAttribute("cy", r*spacing + spacing/2);
+    circle.setAttribute("r", 5);
+    circle.setAttribute("fill", rgbToString(shadeColors[0]));
+    svg.appendChild(circle);
+    dots.push({circle,row:r,col:c});
+  }
+}
+
+// リップル
+let ripples = [];
+const RIPPLE_STEPS = 60;
+const STEP_DURATION = 120;
+
+// モード
+let autoMode = false;
+const toggleButton = document.getElementById('modeToggle');
+
+toggleButton.addEventListener('click', ()=>{
+  autoMode = !autoMode;
+  toggleButton.textContent = autoMode ? '🤖' : '✋';
+  toggleButton.style.color = autoMode ? '#f0f0f0' : '#101010';
+  if(autoMode) autoGenerate();
+});
+
+// 手動モードクリック
+svg.addEventListener('click', e=>{
+  if(autoMode) return;
+  const rect = svg.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  addRipple(x, y);
+});
+
+// 波紋追加関数
+function addRipple(x, y){
+  const col = Math.floor(x / spacing);
+  const row = Math.floor(y / spacing);
+  ripples.push({row, col, start: performance.now(), alpha:1});
+}
+
+// オートモード：ランダムに波紋
+function autoGenerate(){
+  if(!autoMode) return;
+  const x = Math.random() * window.innerWidth;
+  const y = Math.random() * window.innerHeight;
+  addRipple(x, y);
+  const interval = 500 + Math.random()*1000;
+  setTimeout(autoGenerate, interval);
+}
+
+// アニメーション
+function animate(){
+  const now = performance.now();
+
+  dots.forEach(dotObj=>{
+    const r = dotObj.row;
+    const c = dotObj.col;
+
+    let amplitudeSum = 0;
+    let activeRipples = 0;
+
+    ripples.forEach(ripple=>{
+      const dx = c - ripple.col;
+      const dy = r - ripple.row;
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      const rippleElapsed = (now - ripple.start)/STEP_DURATION;
+      const step = Math.min(RIPPLE_STEPS, rippleElapsed);
+
+      if(distance <= step){
+        const width = 1 + (step/RIPPLE_STEPS)*2;
+        const fade = 1 - (distance / RIPPLE_STEPS);
+        amplitudeSum += Math.max(0, Math.cos((distance - step)*Math.PI/4)) * fade * width * ripple.alpha;
+        activeRipples++;
+      }
+    });
+
+    let amplitude = activeRipples>0 ? amplitudeSum / activeRipples : 0;
+    amplitude = Math.max(0, Math.min(1, amplitude));
+
+    const t = amplitude * (shadeColors.length-1);
+    const lower = Math.floor(t);
+    const upper = Math.min(shadeColors.length-1, lower+1);
+    const f = t - lower;
+    let color = lerpColor(shadeColors[lower], shadeColors[upper], f);
+
+    // 光の効果
+    if(activeRipples > 1){
+      const boost = activeRipples * 15;
+      color.r = Math.min(255, color.r + boost);
+      color.g = Math.min(255, color.g + boost);
+      color.b = Math.min(255, color.b + boost);
+    }
+
+    dotObj.circle.setAttribute("fill", rgbToString(color));
+  });
+
+  // フェードアウト
+  ripples.forEach(ripple=>{
+    ripple.alpha -= 0.006;
+    if(ripple.alpha<0) ripple.alpha=0;
+  });
+  ripples = ripples.filter(r => r.alpha > 0);
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
