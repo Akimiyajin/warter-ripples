@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>水の波紋ドットプログラム</title>
+<title>水の波紋ドットプログラム + チャイム</title>
 <style>
   body {
     margin: 0;
@@ -16,12 +16,11 @@
     width: 100vw;
     height: 100vh;
   }
-  #modeToggle {
+  .control-btn {
     position: absolute;
     top: 10px;
-    left: 10px;
-    background: #ffffff; /* 常に白 */
-    color: #101010;       /* 初期黒っぽい色 */
+    background: #ffffff;
+    color: #101010;
     border: none;
     padding: 5px 8px;
     border-radius: 6px;
@@ -29,18 +28,25 @@
     font-size: 20px;
     line-height: 1;
   }
+  #modeToggle {
+    left: 10px;
+  }
+  #soundToggle {
+    left: 60px;
+  }
 </style>
 </head>
 <body>
-<button id="modeToggle">✋</button>
+<button id="modeToggle" class="control-btn">✋</button>
+<button id="soundToggle" class="control-btn">🔊</button>
 <svg id="svgGrid"></svg>
 
 <script>
+// ---- 波紋描画部分 ----
 const svg = document.getElementById('svgGrid');
 const dots = [];
 const spacing = 17;
 
-// 青系グラデーション
 const shadeColors = [
   {r:11,g:28,b:63},
   {r:25,g:50,b:128},
@@ -55,12 +61,10 @@ function lerpColor(a,b,t){
   const bVal = Math.round(a.b + (b.b - a.b) * t);
   return {r,g,b:bVal};
 }
-
 function rgbToString(c){
   return `rgb(${c.r},${c.g},${c.b})`;
 }
 
-// ドット配置
 const cols = Math.floor(window.innerWidth / spacing);
 const rows = Math.floor(window.innerHeight / spacing);
 
@@ -84,6 +88,8 @@ const STEP_DURATION = 120;
 // モード
 let autoMode = false;
 const toggleButton = document.getElementById('modeToggle');
+const soundButton = document.getElementById('soundToggle');
+let soundOn = true;
 
 toggleButton.addEventListener('click', ()=>{
   autoMode = !autoMode;
@@ -92,7 +98,13 @@ toggleButton.addEventListener('click', ()=>{
   if(autoMode) autoGenerate();
 });
 
-// 手動モードクリック
+soundButton.addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  soundButton.textContent = soundOn ? '🔊' : '🔇';
+  soundButton.style.color = soundOn ? '#101010' : '#666666';
+});
+
+// 手動クリックで波紋
 svg.addEventListener('click', e=>{
   if(autoMode) return;
   const rect = svg.getBoundingClientRect();
@@ -101,14 +113,16 @@ svg.addEventListener('click', e=>{
   addRipple(x, y);
 });
 
-// 波紋追加関数
+// 波紋追加
 function addRipple(x, y){
   const col = Math.floor(x / spacing);
   const row = Math.floor(y / spacing);
   ripples.push({row, col, start: performance.now(), alpha:1});
+
+  if(soundOn) playRandomNote();
 }
 
-// オートモード：ランダムに波紋
+// 自動モード
 function autoGenerate(){
   if(!autoMode) return;
   const x = Math.random() * window.innerWidth;
@@ -153,7 +167,6 @@ function animate(){
     const f = t - lower;
     let color = lerpColor(shadeColors[lower], shadeColors[upper], f);
 
-    // 光の効果
     if(activeRipples > 1){
       const boost = activeRipples * 15;
       color.r = Math.min(255, color.r + boost);
@@ -164,7 +177,6 @@ function animate(){
     dotObj.circle.setAttribute("fill", rgbToString(color));
   });
 
-  // フェードアウト
   ripples.forEach(ripple=>{
     ripple.alpha -= 0.006;
     if(ripple.alpha<0) ripple.alpha=0;
@@ -173,8 +185,36 @@ function animate(){
 
   requestAnimationFrame(animate);
 }
-
 animate();
+
+// ---- 音部分 ----
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioContext();
+
+// Cメジャースケール (C4〜C5)
+const scaleFreqs = [261.63,293.66,329.63,349.23,392.00,440.00,493.88,523.25];
+
+function playNote(freq) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = "sine"; // 優しい音
+  osc.frequency.value = freq;
+
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.2);
+  gain.gain.linearRampToValueAtTime(0.0, audioCtx.currentTime + 2.0);
+
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 2.5);
+}
+
+function playRandomNote(){
+  if(audioCtx.state === "suspended") audioCtx.resume();
+  const freq = scaleFreqs[Math.floor(Math.random()*scaleFreqs.length)];
+  playNote(freq);
+}
 </script>
 </body>
 </html>
