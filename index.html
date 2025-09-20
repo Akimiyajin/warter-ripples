@@ -128,7 +128,7 @@ function autoGenerate(){
   const x = Math.random() * window.innerWidth;
   const y = Math.random() * window.innerHeight;
   addRipple(x, y);
-  const interval = 500 + Math.random()*1000;
+  const interval = 800 + Math.random()*2000;
   setTimeout(autoGenerate, interval);
 }
 
@@ -218,3 +218,4 @@ function playRandomNote(){
 </script>
 </body>
 </html>
+
